@@ -47,7 +47,7 @@ class ServiceRunner(object):
         There can only be one service class for a given service name.
         Service classes must be registered before calling start()
         """
-        service_name = get_service_name(cls)
+        service_name = 'HttpServiceList'
         container = self.container_cls(cls, self.config)
         self.service_map[service_name] = container
 
