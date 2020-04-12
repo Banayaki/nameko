@@ -129,35 +129,17 @@ class WorkerContext(object):
 
 class ServiceContainer(object):
 
-    def __init__(self, service_cls, config):
-
-        self.service_cls = service_cls
+    def __init__(self, service_cls_list, config):
+        self.service_cls_list = service_cls_list
         self.config = config
-
-        self.service_name = get_service_name(service_cls)
-        self.shared_extensions = {}
-
-        self.max_workers = (
-            config.get(MAX_WORKERS_CONFIG_KEY) or DEFAULT_MAX_WORKERS)
-
         self.serializer, self.accept = serialization.setup(self.config)
+        self.max_workers = (
+                config.get(MAX_WORKERS_CONFIG_KEY) or DEFAULT_MAX_WORKERS)
 
+        self.shared_extensions = {}
         self.entrypoints = SpawningSet()
         self.dependencies = SpawningSet()
         self.subextensions = SpawningSet()
-
-        for attr_name, dependency in inspect.getmembers(service_cls,
-                                                        is_dependency):
-            bound = dependency.bind(self.interface, attr_name)
-            self.dependencies.add(bound)
-            self.subextensions.update(iter_extensions(bound))
-
-        for method_name, method in inspect.getmembers(service_cls, is_method):
-            entrypoints = getattr(method, ENTRYPOINT_EXTENSIONS_ATTR, [])
-            for entrypoint in entrypoints:
-                bound = entrypoint.bind(self.interface, method_name)
-                self.entrypoints.add(bound)
-                self.subextensions.update(iter_extensions(bound))
 
         self.started = False
         self._worker_pool = GreenPool(size=self.max_workers)
@@ -166,6 +148,24 @@ class ServiceContainer(object):
         self._managed_threads = {}
         self._being_killed = False
         self._died = Event()
+
+        for service_cls in service_cls_list:
+            self.service_cls = service_cls
+
+            self.service_name = get_service_name(service_cls)
+
+            for attr_name, dependency in inspect.getmembers(service_cls,
+                                                            is_dependency):
+                bound = dependency.bind(self.interface, attr_name)
+                self.dependencies.add(bound)
+                self.subextensions.update(iter_extensions(bound))
+
+            for method_name, method in inspect.getmembers(service_cls, is_method):
+                entrypoints = getattr(method, ENTRYPOINT_EXTENSIONS_ATTR, [])
+                for entrypoint in entrypoints:
+                    bound = entrypoint.bind(self.interface, method_name)
+                    self.entrypoints.add(bound)
+                    self.subextensions.update(iter_extensions(bound))
 
     @property
     def extensions(self):
